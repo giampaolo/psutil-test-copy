@@ -1,0 +1,203 @@
+# Executed on every push by GitHub Actions. This runs CI tests and
+# generates wheels (not all) on the following platforms:
+#
+# * Linux
+# * macOS
+# * Windows (disabled)
+# * FreeBSD
+#
+# To skip certain builds see:
+# https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
+#
+# External GH actions:
+# * https://github.com/pypa/cibuildwheel
+# * https://github.com/actions/checkout
+# * https://github.com/actions/setup-python
+# * https://github.com/actions/upload-artifact
+# * https://github.com/marketplace/actions/cancel-workflow-action
+# * https://github.com/vmactions/freebsd-vm
+
+on: [push, pull_request]
+name: build
+jobs:
+  # Linux + macOS + Windows Python 3
+  py3:
+    name: ${{ matrix.os }}-py3
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-12, windows-2019]
+
+    steps:
+    - name: Cancel previous runs
+      uses: styfle/cancel-workflow-action@0.9.1
+      with:
+        access_token: ${{ github.token }}
+
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v3
+      with:
+        python-version: 3.9
+        cache: pip
+        cache-dependency-path: .github/workflows/build.yml
+
+    - name: Run tests
+      uses: pypa/cibuildwheel@v2.11.1
+
+    - name: Create wheels
+      uses: actions/upload-artifact@v3
+      with:
+        name: wheels
+        path: wheelhouse
+
+    - name: Print hashes
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        make generate-manifest
+        python setup.py sdist
+        mv dist/psutil*.tar.gz wheelhouse/
+        python scripts/internal/print_hashes.py wheelhouse/
+
+  # Windows cp37+ tests
+  # psutil tests do not like running from a virtualenv with python>=3.7 so
+  # not using cibuildwheel for those. run them "manually" with this job.
+  windows-py3-test:
+    name: windows-py3-test-${{ matrix.python }}-${{ matrix.architecture }}
+    needs: py3
+    runs-on: windows-2019
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.7", "3.8", "3.9", "3.10", "~3.11.0-0"]
+        architecture: ["x86", "x64"]
+
+    steps:
+    - name: Cancel previous runs
+      uses: styfle/cancel-workflow-action@0.9.1
+      with:
+        access_token: ${{ github.token }}
+
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: "${{ matrix.python }}"
+        architecture: "${{ matrix.architecture }}"
+        cache: pip
+        cache-dependency-path: .github/workflows/build.yml
+
+    - name: Download wheels
+      uses: actions/download-artifact@v3
+      with:
+        name: wheels
+        path: wheelhouse
+
+    - name: Run tests
+      run: |
+        mkdir .tests
+        cd .tests
+        pip install $(find ../wheelhouse -name '*-cp36-abi3-${{ matrix.architecture == 'x86' && 'win32' || 'win_amd64'}}.whl')[test]
+        export PYTHONWARNINGS=always
+        export PYTHONUNBUFFERED=1
+        export PSUTIL_DEBUG=1
+        python ../psutil/tests/runner.py
+        python ../psutil/tests/test_memleaks.py
+      shell: bash
+
+  # Linux + macOS + Python 2
+  linux-macos-py2:
+    name: ${{ matrix.os }}-py2
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-12]
+    env:
+      CIBW_TEST_COMMAND:
+        PYTHONWARNINGS=always PYTHONUNBUFFERED=1 PSUTIL_DEBUG=1 python {project}/psutil/tests/runner.py &&
+        PYTHONWARNINGS=always PYTHONUNBUFFERED=1 PSUTIL_DEBUG=1 python {project}/psutil/tests/test_memleaks.py
+      CIBW_TEST_EXTRAS: test
+      CIBW_BUILD: 'cp27-*'
+
+    steps:
+    - name: Cancel previous runs
+      uses: styfle/cancel-workflow-action@0.9.1
+      with:
+        access_token: ${{ github.token }}
+
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v3
+      with:
+        python-version: 3.9
+        cache: pip
+        cache-dependency-path: .github/workflows/build.yml
+
+    - name: Run tests
+      uses: pypa/cibuildwheel@v1.12.0
+
+    - name: Create wheels
+      uses: actions/upload-artifact@v3
+      with:
+        name: wheels
+        path: wheelhouse
+
+    - name: Print hashes
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        make generate-manifest
+        python setup.py sdist
+        mv dist/psutil*.tar.gz wheelhouse/
+        python scripts/internal/print_hashes.py wheelhouse/
+
+  freebsd:
+    runs-on: macos-12
+    steps:
+    - name: Cancel previous runs
+      uses: styfle/cancel-workflow-action@0.6.0
+      with:
+        access_token: ${{ github.token }}
+
+    - uses: actions/checkout@v3
+
+    - name: Run tests
+      id: test
+      uses: vmactions/freebsd-vm@v0
+      with:
+        usesh: true
+        prepare: pkg install -y gcc python3
+        run: |
+          set +e
+          export \
+            PYTHONUNBUFFERED=1 \
+            PYTHONWARNINGS=always \
+            PSUTIL_DEBUG=1
+          python3 -m pip install --user setuptools
+          python3 setup.py install
+          python3 psutil/tests/runner.py
+          python3 psutil/tests/test_memleaks.py
+
+  linters:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v3
+      with:
+        cache: pip
+        cache-dependency-path: .github/workflows/build.yml
+    - name: 'Run linters'
+      run: |
+        # py2
+        curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
+        python2 get-pip.py
+        python2 -m pip install flake8
+        python2 -m flake8 .
+        # py3
+        python3 -m pip install flake8 isort
+        python3 -m flake8 .
+        python3 -m isort .
+        # clinter
+        find . -type f \( -iname "*.c" -o -iname "*.h" \) | xargs python3 scripts/internal/clinter.py
