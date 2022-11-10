@@ -34,6 +34,8 @@ def main():
             sha256 = csum(file, "sha256")
             print("%s\nmd5: %s\nsha256: %s\n" % (
                 os.path.basename(file), md5, sha256))
+        else:
+            print("skipping %r (not a file)" % file)
 
 
 if __name__ == "__main__":
