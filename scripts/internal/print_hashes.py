@@ -24,8 +24,8 @@ def csum(file, kind):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        'dir', type=str, help='directory containing dist files')
+    parser.add_argument('dir', type=str,
+                        help='directory containing tar.gz or wheel files')
     args = parser.parse_args()
     for name in sorted(os.listdir(args.dir)):
         file = os.path.join(args.dir, name)
