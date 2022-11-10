@@ -50,13 +50,12 @@ jobs:
         name: wheels
         path: wheelhouse
 
-    - name: Print hashes
+    - name: Generate .tar.gz
       if: matrix.os == 'ubuntu-latest'
       run: |
         make generate-manifest
         python setup.py sdist
         mv dist/psutil*.tar.gz wheelhouse/
-        python scripts/internal/print_hashes.py wheelhouse/
 
   # Windows cp37+ tests
   # psutil tests do not like running from a virtualenv with python>=3.7 so
@@ -139,13 +138,12 @@ jobs:
         name: wheels
         path: wheelhouse
 
-    - name: Print hashes
+    - name: Generate .tar.gz
       if: matrix.os == 'ubuntu-latest'
       run: |
         make generate-manifest
         python setup.py sdist
         mv dist/psutil*.tar.gz wheelhouse/
-        python scripts/internal/print_hashes.py wheelhouse/
 
   freebsd:
     runs-on: macos-12
@@ -202,4 +200,7 @@ jobs:
         with:
           name: wheels
           path: wheelhouse
-      - run: pipx run twine check --strict wheelhouse/*
+      - run: |
+        python scripts/internal/print_wheels.py wheelhouse/
+        python scripts/internal/print_hashes.py wheelhouse/
+        pipx run twine check --strict wheelhouse/*
