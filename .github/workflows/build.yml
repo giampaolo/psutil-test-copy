@@ -22,7 +22,7 @@ name: build
 jobs:
   # Linux + macOS + Windows on Python 3 (wheels + tests)
   py3:
-    name: ${{ matrix.python }}-${{ matrix.os }}
+    name: py3-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -105,7 +105,7 @@ jobs:
 
   # Linux + macOS + Python 2
   py2:
-    name: ${{ matrix.python }}-${{ matrix.os }}
+    name: py2-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
