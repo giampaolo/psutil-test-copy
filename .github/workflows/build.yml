@@ -203,11 +203,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-      - uses: actions/download-artifact@v3
-        with:
-          name: wheels
-          path: wheelhouse
+      # - uses: actions/download-artifact@v3
+      #   with:
+      #     name: wheels
+      #     path: wheelhouse
       - run: |
+          mkdir wheelhouse/
           python scripts/internal/print_hashes.py wheelhouse/
           python scripts/internal/print_dist.py wheelhouse/
           pipx run twine check --strict wheelhouse/*
