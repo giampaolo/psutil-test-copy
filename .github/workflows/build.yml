@@ -21,8 +21,8 @@ on: [push, pull_request]
 name: build
 jobs:
   # Linux + macOS + Windows on Python 3 (wheels + tests)
-  py3-wheels-and-tests:
-    name: py3-${{ matrix.os }}
+  py3:
+    name: ${{ matrix.python }}-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -41,10 +41,10 @@ jobs:
       with:
         python-version: 3.11
 
-    - name: Run tests
+    - name: Create wheels + run tests
       uses: pypa/cibuildwheel@v2.11.2
 
-    - name: Create wheels
+    - name: Upload wheels
       uses: actions/upload-artifact@v3
       with:
         name: wheels
@@ -56,14 +56,13 @@ jobs:
         make generate-manifest
         python setup.py sdist
         mv dist/psutil*.tar.gz wheelhouse/
-        python scripts/internal/print_hashes.py wheelhouse/
 
   # Windows cp37+ tests
   # psutil tests do not like running from a virtualenv with python>=3.7 so
   # not using cibuildwheel for those. run them "manually" with this job.
-  py3-windows:
+  py3-windows-tests:
     name: py3-windows-test-${{ matrix.python }}-${{ matrix.architecture }}
-    needs: py3-wheels-and-tests
+    needs: py3
     runs-on: windows-2019
     timeout-minutes: 20
     strategy:
@@ -105,8 +104,8 @@ jobs:
       shell: bash
 
   # Linux + macOS + Python 2
-  py2-wheels-and-tests:
-    name: py2-${{ matrix.os }}
+  py2:
+    name: ${{ matrix.python }}-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -199,11 +198,14 @@ jobs:
   # Check resulting .tar.gz + wheel files
   check_dist:
     name: Check dist
-    needs: [py2-wheels-and-tests, py3-wheels-and-tests]
+    needs: [py2, py3]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: wheels
           path: wheelhouse
-      - run: pipx run twine check --strict wheelhouse/*
+      - run: |
+          python scripts/internal/print_hashes.py wheelhouse/
+          python scripts/internal/print_dist.py wheelhouse/
+          pipx run twine check --strict wheelhouse/*
