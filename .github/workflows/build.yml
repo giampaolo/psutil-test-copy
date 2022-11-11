@@ -63,13 +63,14 @@ jobs:
   # not using cibuildwheel for those. run them "manually" with this job.
   py3-windows:
     name: py3-windows-test-${{ matrix.python }}-${{ matrix.architecture }}
-    needs: py3
+    needs: py3-wheels-and-tests
     runs-on: windows-2019
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.7", "3.8", "3.9", "3.10", "~3.11.0-0"]
+        # python: ["3.7", "3.8", "3.9", "3.10", "~3.11.0-0"]
+        python: ["3.11"]
         architecture: ["x86", "x64"]
 
     steps:
