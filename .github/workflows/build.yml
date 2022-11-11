@@ -20,8 +20,8 @@
 on: [push, pull_request]
 name: build
 jobs:
-  # Linux + macOS + Windows Python 3
-  py3:
+  # Linux + macOS + Windows on Python 3 (wheels + tests)
+  py3-wheels-and-tests:
     name: py3-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -61,7 +61,7 @@ jobs:
   # Windows cp37+ tests
   # psutil tests do not like running from a virtualenv with python>=3.7 so
   # not using cibuildwheel for those. run them "manually" with this job.
-  windows-py3-test:
+  py3-windows:
     name: py3-windows-test-${{ matrix.python }}-${{ matrix.architecture }}
     needs: py3
     runs-on: windows-2019
@@ -104,7 +104,7 @@ jobs:
       shell: bash
 
   # Linux + macOS + Python 2
-  linux-macos-py2:
+  py2-wheels-and-tests:
     name: py2-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -147,7 +147,8 @@ jobs:
         mv dist/psutil*.tar.gz wheelhouse/
         python scripts/internal/print_hashes.py wheelhouse/
 
-  freebsd:
+  # FreeBSD (tests only)
+  py3-freebsd:
     runs-on: macos-12
     steps:
     - name: Cancel previous runs
@@ -174,6 +175,7 @@ jobs:
           python3 psutil/tests/runner.py
           python3 psutil/tests/test_memleaks.py
 
+  # Run linters
   linters:
     runs-on: ubuntu-latest
     steps:
@@ -193,9 +195,10 @@ jobs:
         # clinter
         find . -type f \( -iname "*.c" -o -iname "*.h" \) | xargs python3 scripts/internal/clinter.py
 
+  # Check resulting .tar.gz + wheel files
   check_dist:
     name: Check dist
-    needs: [linux-macos-py2, py3]
+    needs: [py2-wheels-and-tests, py3-wheels-and-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v3
